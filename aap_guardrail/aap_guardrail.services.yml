@@ -1,0 +1,6 @@
+services:
+  aap_guardrail.event_subscriber:
+    class: Drupal\aap_guardrail\EventSubscriber\RedirectRecursiveRs
+    arguments: []
+    tags:
+      - {name: event_subscriber}

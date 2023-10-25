@@ -1,0 +1,5 @@
+base_api_url: https://www.eventbriteapi.com/v3/
+auth_token: R23I2YX6HU4AIGGSLB63
+interval: 86400
+batch: 200
+force_reload: 0

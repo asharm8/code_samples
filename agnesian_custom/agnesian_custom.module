@@ -1,0 +1,261 @@
+<?php
+
+/**
+ * @file
+ * Provides functionality for the Agnesian website.
+ */
+
+use Drupal\agnesian_custom\Controller\AgnesianCustomController;
+use Drupal\Component\Utility\Html;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Link;
+use Drupal\Core\Url;
+use Drupal\entity_print\Plugin\EntityPrintPluginManagerInterface;
+use Drupal\node\Entity\Node;
+use Drupal\taxonomy\Entity\Term;
+
+/*
+ * Implements hook_preprocess_entity_print().
+ */
+function agnesian_custom_preprocess_entity_print(&$vars) {
+  drupal_set_time_limit(0);
+}
+
+/*
+ * Implements hook_form_alter().
+ */
+function agnesian_custom_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+  // Acquia Search filters.
+  if (strpos($form['#id'], 'views-exposed-form-acquia-search') !== FALSE) {
+    unset($form['#info']['filter-search_api_fulltext']['label']);
+    $form['search']['#placeholder'] = t('Search...');
+    $form['search']['#attributes']['class'][] = 'form-search';
+    $form['#attributes']['class'][] = 'container-inline';
+  }
+  if ($form['#id'] == 'views-exposed-form-acquia-search-blog') {
+    $form['search']['#placeholder'] = t('Search the Blog...');
+  }
+
+  // Find a Doctor filters.
+  if (strpos($form['#id'], 'views-exposed-form-find-a-doctor') !== FALSE) {
+    // Override the Accepting New Patients filter to be a single on-off checkbox.
+    //$form['new_patients']['#type'] = 'checkbox';
+
+    // Override the City filter to be a set of checkboxes instead of a text field.
+    $form['city']['#type'] = 'checkboxes';
+
+    $options = [];
+    $query = \Drupal::entityQuery('node')
+      ->condition('status', 1)
+      ->condition('type', 'location')
+      ->sort('title')
+    ;
+    $nids = $query->execute();
+    if (!empty($nids)) {
+      foreach ($nids as $nid) {
+        $node = Node::load($nid);
+        $city = $node->get('field_address')->getValue();
+        if (!empty($city)) {
+          $city = $city[0]['locality'];
+          $options[$city] = $city;
+        }
+      }
+    }
+    asort($options);
+
+    $form['city']['#options'] = $options;
+    $form['city']['#default_value'] = [];
+    $input = $form_state->getUserInput();
+    if(!is_array($input['city'])){
+      $input['city'] = [];
+    }
+    $form_state->setUserInput($input);
+
+    // Override the keyword filter to only use assigned tags instead of all.
+    $options = array();
+    $query = db_select('node__field_tags', 'tags');
+    $query->join('taxonomy_term_field_data', 'term', 'tags.field_tags_target_id = term.tid');
+    $results = $query
+      ->fields('tags')
+      ->fields('term')
+      ->condition('tags.bundle', 'physician')
+      ->condition('tags.deleted', 0)
+      ->distinct()
+      ->orderBy('term.weight')
+      ->orderBy('term.name')
+      ->execute();
+    foreach($results as $result) {
+      $options[$result->field_tags_target_id] = $result->name;
+    }
+    $form['keyword']['#options'] = $options;
+  }
+}
+
+/**
+ * Implements hook_preprocess_HOOK().
+ **/
+function agnesian_custom_preprocess_views_view(&$variables) {
+  // Setup active filter bubbles for Find a Doctor search results.
+  $view = $variables['view'];
+  if ($view->id() == 'find_a_doctor') {
+    // Initialize output.
+    $output = '';
+
+    // Determine which filters are applied and process each one in turn.
+    $filters = ['name', 'keyword', 'specialty', 'city', 'location', 'gender', 'new_patients'];
+    $exposed_input = !empty($_POST) ? $_POST : $view->getExposedInput();
+    foreach($filters as $filter) {
+      if (!empty($exposed_input[$filter])) {
+        if (is_array($exposed_input[$filter])) {
+          $active_filter = array_filter($exposed_input[$filter]);
+        } else {
+          $active_filter = $exposed_input[$filter];
+          if (!$active_filter || ($active_filter == 'All')) {
+            // All is the same as no filter.
+            $active_filter = '';
+          }
+        }
+
+        // Output a bubble for active filters.
+        if (!empty($active_filter)) {
+          if (is_array($active_filter)) {
+            foreach($active_filter as $filter_value) {
+              $id = agnesian_custom_filter_id($filter, $filter_value);
+              $value = agnesian_custom_filter_value($filter, $id, $filter_value);
+              $output .= agnesian_custom_filter_bubble($filter, $id, $value);
+            }
+          } else {
+            $filter_value = $active_filter;
+
+            $id = agnesian_custom_filter_id($filter, $filter_value);
+            $value = agnesian_custom_filter_value($filter, $id, $filter_value);
+            $output .= agnesian_custom_filter_bubble($filter, $id, $value);
+          }
+        }
+      }
+    }
+
+    if ($output) {
+      $output .= agnesian_custom_filter_bubble_reset();
+      $variables['active_filters'] = ['#markup' => $output];
+    }
+
+    // Add a footer link to download the full provider directory unless filters are set.
+    if (empty($variables['active_filters'])) {
+      $link = Link::fromTextAndUrl(t('Full Provider Directory'), Url::fromRoute('agnesian_custom.pdfgen'))
+        ->toString();
+      $variables['footer'] = ['#markup' => '<p class="full-provider-directory-link">' . $link . '</p>'];
+    }
+    else {
+      if (isset($variables['footer']['area_entity_print_views'])) {
+        //Partial Provider Directory Link should load automatically. Let's ensure we only load the current page for results.
+        $currentUrlOptions = $variables['footer']['area_entity_print_views']['#url']->getOptions();
+        if (!isset($currentUrlOptions['query']['page'])) {
+          $currentUrlOptions['query']['page'] = $view->pager->getCurrentPage();
+          $variables['footer']['area_entity_print_views']['#url']->setOptions($currentUrlOptions);
+        }
+      }
+    }
+  }
+}
+
+function agnesian_custom_filter_id($filter_name, $filter_value) {
+  if ($filter_name == 'new_patients') {
+    return 'new-patients';
+  } elseif ($filter_name == 'name') {
+    return $filter_name;
+  } elseif ($filter_name == 'gender') {
+    return $filter_name;
+  } elseif (is_numeric($filter_value)) {
+    return $filter_name . '-' . $filter_value;
+  } else {
+    return $filter_name . '-' . strtolower(Html::cleanCssIdentifier($filter_value));
+  }
+}
+
+function agnesian_custom_filter_value($filter_name, $id, $filter_value) {
+  switch($filter_name) {
+    case 'name':
+      $value = $filter_value;
+      break;
+
+    case 'keyword':
+    case 'specialty':
+      $term = Term::load($filter_value);
+      $value = $term->label();
+      break;
+
+    case 'city':
+      $value = $filter_value;
+      break;
+
+    case 'location':
+      $node = Node::load($filter_value);
+      $value = $node->label();
+      break;
+
+    case 'gender':
+      $value = ($filter_value == 'f') ? t('Female') : t('Male');
+      break;
+
+    case 'new_patients':
+      $value = t('Accepting new patients');
+      break;
+  }
+
+  return $value;
+}
+
+function agnesian_custom_filter_bubble_reset() {
+  $current_path = strtok(\Drupal::request()->getRequestUri(), '?');
+  if (strpos($current_path, 'ajax') !== FALSE) {
+    $current_path = isset($_SERVER['HTTP_REFERER']) ? strtok($_SERVER['HTTP_REFERER'], '?') : '';
+  }
+
+  $output  = '<div class="active-filter active-filter-type--reset">';
+  $output .=   '<div class="active-filter-remove-all">';
+  $output .=     '<a href="' . $current_path . '">' . t('Reset filters') . '</a>';
+  $output .=   '</div>';
+  $output .= '</div>';
+
+  return $output;
+}
+
+function agnesian_custom_filter_bubble($filter_name, $id, $value) {
+  $raw_id = $id;
+  if (strpos($id, $filter_name . '-') === 0) {
+    $raw_id = substr($id, strlen($filter_name . '-'));
+  }
+  $class_name = strtolower(Html::cleanCssIdentifier($filter_name));
+
+  $locked = agnesian_custom_last_query_filter($filter_name);
+  if ($locked) {
+    $class_name .= ' active-filter-locked';
+  }
+  $output  = '<div class="active-filter active-filter-type--' . $class_name . '">';
+  $output .=   '<span class="active-filter-value">' . $value . '</span>';
+  if (!$locked) {
+    $output .= '<div class="active-filter-remove" id="active-filter-remove-' . $id . '">';
+    $output .=   '<span class="active-filter-remove-mark">x</span>';
+    $output .= '</div>';
+  }
+  $output .= '</div>';
+
+  return $output;
+}
+
+function agnesian_custom_last_query_filter($filter_name) {
+  $in_query = FALSE;
+  if (!empty($_GET[$filter_name])) {
+    $query_part = $_GET[$filter_name];
+    $post_part = !empty($_POST[$filter_name]) ? $_POST[$filter_name] : $query_part;
+    if (is_array($query_part)) {
+      if (count($post_part) == 1) {
+        $in_query = TRUE;
+      }
+    } else {
+      $in_query = TRUE;
+    }
+  }
+  return $in_query;
+}

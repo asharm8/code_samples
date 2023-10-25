@@ -1,0 +1,6 @@
+# Define default links for this module.
+agnesian_eventbrite.config_form:
+  route_name: agnesian_eventbrite.config_form
+  title: 'Agnesian Eventbrite'
+  parent: system.admin_config_services
+  description: 'Agnesian Eventbrite configuration form'

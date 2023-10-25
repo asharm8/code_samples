@@ -1,0 +1,24 @@
+<?php
+
+/**
+ * @file
+ * Contains aap_guardrail.module.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+
+/**
+ * Implements hook_help().
+ */
+function aap_guardrail_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    // Main module help for the aap_guardrail module.
+    case 'help.page.aap_guardrail':
+      $output = '';
+      $output .= '<h3>' . t('About') . '</h3>';
+      $output .= '<p>' . t('AAP Recursion Guardrail') . '</p>';
+      return $output;
+
+    default:
+  }
+}

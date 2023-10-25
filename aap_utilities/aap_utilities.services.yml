@@ -1,0 +1,26 @@
+services:
+  aap_utilities.link_generator:
+    class: Drupal\aap_utilities\LinkGenerator\LinkGenerator
+    arguments: ['@url_generator.non_bubbling', '@module_handler',  '@renderer']
+  aap_utilities.events_view_subscriber:
+    class: Drupal\aap_utilities\EventSubscriber\EventsViewSubscriber
+    tags:
+      - {name: event_subscriber}
+  aap_utilities.render_subscriber:
+    class:  Drupal\aap_utilities\EventSubscriber\RenderEventSubscriber
+    arguments: ['@html_response.attachments_processor']
+    tags:
+      - {name: event_subscriber}
+  metatag.route_subscriber:
+    class: Drupal\aap_utilities\Routing\RouteSubscriber
+    tags:
+      - { name: event_subscriber }
+  aap_utilities.redirect_exception_listener:
+    class: Drupal\aap_utilities\EventSubscriber\Redirect403To404EventSubscriber
+    tags:
+      - { name: event_subscriber }
+  aap_utilities.archived_exception_listener:
+    class: Drupal\aap_utilities\EventSubscriber\RedirectArchivedSubscriber
+    arguments: ['@current_user']
+    tags:
+      - { name: event_subscriber }

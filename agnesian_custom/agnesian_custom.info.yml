@@ -1,0 +1,5 @@
+name: Agnesian Custom
+type: module
+description: 'Provide services for the new Agnesian website.'
+core: 8.x
+package: 'Custom'

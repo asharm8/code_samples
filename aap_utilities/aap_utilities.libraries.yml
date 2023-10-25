@@ -1,0 +1,6 @@
+# Script to add reactive applied filters
+applied_filters:
+  js:
+    js/applied_filters.js: {}
+  dependencies:
+    - core/jquery

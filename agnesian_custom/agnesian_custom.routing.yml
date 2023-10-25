@@ -1,0 +1,23 @@
+agnesian_custom.pdfgen:
+    path: '/pdfgen'
+    defaults:
+      _controller: '\Drupal\agnesian_custom\Controller\AgnesianCustomController::generateFullPDFThroughRoute'
+      _title: 'Download Full Provider Directory'
+    requirements:
+      _permission: 'access content'
+
+agnesian_custom.pdfgen_no_cache:
+    path: '/pdfgen/force'
+    defaults:
+      _controller: '\Drupal\agnesian_custom\Controller\AgnesianCustomController::generateFullPDFThroughRoute'
+      _title: 'Download Full Provider Directory'
+      force: true;
+    requirements:
+      _permission: 'administer site configuration'
+
+agnesian_custom.config_form:
+  path: '/admin/config/services/agnesian-directoryconfig'
+  defaults:
+    _form: '\Drupal\agnesian_custom\Form\PDFDirectoryForm'
+  requirements:
+    _permission: 'administer site configuration'

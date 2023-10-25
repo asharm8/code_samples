@@ -1,0 +1,422 @@
+<?php
+
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\views\ViewExecutable;
+use Drupal\views\Plugin\views\query\QueryPluginBase;
+use Drupal\Core\Url;
+use Drupal\Core\Link;
+use Drupal\taxonomy\Entity\Term;
+use Drupal\Core\Render\BubbleableMetadata;
+
+/**
+ * Implements hook_views_pre_render().
+ */
+function aap_utilities_views_pre_render(ViewExecutable $view) {
+  if ($view->id() == 'events') {
+    // Attach jQuery code for Select All checkbox
+    //$view->element['#attached']['library'][] = 'aap_utilities/applied_filters';
+  }
+
+  if ($view->id() == 'how_to_category_carousel') {
+    $cat_name = $view->argument["name"]->argument;
+    $term_array = \Drupal::entityTypeManager()
+      ->getStorage('taxonomy_term')
+      ->loadByProperties(['name' => $cat_name]);
+    $term = reset($term_array);
+    $cat_url = !empty($term) ? $term->url() : '#';
+    $view->header['area']->options['content']['value'] = str_ireplace('[cat-name]', $cat_name, $view->header['area']->options['content']['value']);
+    $view->header['area']->options['content']['value'] = str_ireplace('[cat-url]', $cat_url, $view->header['area']->options['content']['value']);
+  }
+}
+
+/**
+ * Implements hook_views_pre_render().
+ */
+function aap_utilities_views_query_alter(ViewExecutable $view, QueryPluginBase $query) {
+  // make sure we're altering the correct view
+  if ($view->storage->get('id') === 'how_to_category_carousel' && $view->current_display === 'block_1') {
+    if (empty($view->argument["name"]->value)) {
+      $query->addWhere(1, 'taxonomy_term_field_data_node__field_category.name', $view->args[0], '=');
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_extra_field_info().
+ */
+function aap_utilities_entity_extra_field_info() {
+  $extra = array();
+  // Create a pseudofield in the event node bundle that will represent the event
+  // date(s) based on the Start and End date fields.
+  $extra['node']['event']['display']['aap_event_dates_to_string'] = array(
+    'label' => t('Custom Date Range Output'),
+    'description' => t('Uses Start Date / End Date to create a string for output on Event Teasers'),
+    'weight' => 100,
+    'visible' => TRUE,
+  );
+
+  return $extra;
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_view().
+ */
+function aap_utilities_node_view(array &$build, \Drupal\Core\Entity\EntityInterface $entity, \Drupal\Core\Entity\Display\EntityViewDisplayInterface $display, $view_mode) {
+  // Output a pseudofield with a div wrapper.
+  if ($display->getComponent('aap_event_dates_to_string')) {
+    $build['aap_event_dates_to_string'] = [
+      '#date_string' => _aap_utilities_make_event_date_string($entity, $view_mode, FALSE),
+      '#theme' => 'aap_utilities_event_date',
+    ];
+
+    // If full display mode, add start time component.
+    if ($view_mode == 'full') {
+      $build['aap_event_dates_to_string']['#time_string'] = _aap_utilities_make_event_date_string($entity, $view_mode, TRUE);
+    }
+
+  }
+}
+
+/**
+ * Implements hook_ENTITY_TYPE_presave().
+ */
+function aap_utilities_node_presave(EntityInterface $entity) {
+  if ($entity->bundle() == 'event') {
+
+    //Set meta variable
+    $metaValue = $entity->field_meta_tags->getValue(TRUE);
+    $meta = unserialize($metaValue[0]['value']);
+
+
+    //If index meta tag feature is not enabled, add it
+    if (strpos($meta['robots'], 'index') === FALSE) {
+      if (empty($meta['robots'])) {
+        $meta['robots'] .= 'index';
+      }
+      else {
+        $meta['robots'] .= ', index';
+      }
+    }
+
+    //If follow meta tag feature is not enabled, add it
+    if (strpos($meta['robots'], 'follow') === FALSE) {
+      if (empty($meta['robots'])) {
+        $meta['robots'] .= 'follow';
+      }
+      else {
+        $meta['robots'] .= ', follow';
+      }
+    }
+
+    $entity->field_meta_tags->setValue(serialize($meta));
+
+    //Add target blank to registration link 1
+    $link = $entity->field_registration->getValue();
+    if (isset($link[0]['uri']) && empty($link[0]['options']['attributes']['target'])) {
+      $link[0]['options']['attributes']['target'] = '_blank';
+      $entity->field_registration->setValue($link);
+    }
+
+    //Add target blank to registration link 2
+    $link2 = $entity->field_registration2->getValue();
+    if (isset($link2[0]['uri']) && empty($link2[0]['options']['attributes']['target'])) {
+      $link2[0]['options']['attributes']['target'] = '_blank';
+      $entity->field_registration2->setValue($link2);
+    }
+  }
+}
+
+/**
+ * Event Date String Formatter.
+ *
+ * Based on start and end date fields, return a string representing
+ * the start and end dates of an event.
+ *
+ * @param \Drupal\Core\Entity\EntityInterface $entity
+ * @return false|string
+ */
+function _aap_utilities_make_event_date_string(\Drupal\Core\Entity\EntityInterface $entity, $view_mode, $returnTime = FALSE) {
+  $sourceTZ = new DateTimeZone("UTC");
+
+  // Get the site's timezone.
+  $destTZ = new DateTimeZone(date_default_timezone_get());
+
+  switch ($view_mode) {
+    case 'full':
+      $monthFormat = 'F';
+      break;
+    default:
+      $monthFormat = 'M';
+      break;
+  }
+
+  // Get start date
+  $startDate = date_create_from_format('Y-m-d', $entity->field_start_date->value);
+
+  //Get start time
+  $startTime = date_create_from_format('Y-m-d\TH:i:s', $entity->field_start_time->value);
+
+  // If the $returnTime, then return the time and be done.
+  if ($returnTime && $startTime) {
+    return date_format($startTime, 'g:iA');
+  }
+
+  //If we want the return time but no value is available.
+  if ($returnTime && !$startTime) {
+    return NULL;
+  }
+
+  // Get end date
+  $endDate = date_create_from_format('Y-m-d', $entity->field_end_date->value);
+
+  // Determine the date to show
+  $startYMD = date_format($startDate, 'Y-m-d');
+  $endYMD = date_format($endDate, 'Y-m-d');
+
+  // Determine the date to show
+  $startYM = date_format($startDate, 'Y-m');
+  $endYM = date_format($endDate, 'Y-m');
+
+  if (empty($endDate)) { //Event with no end date
+    $eventDateString = date_format($startDate, $monthFormat . ' j, Y');
+  }
+  else {
+    if ($startYMD == $endYMD) {  // Same Day Event
+      $eventDateString = date_format($startDate, $monthFormat . ' j, Y');
+    }
+    else {
+      if ($startYM == $endYM) { // Same Month Event
+        $eventDateString = date_format($startDate, $monthFormat . ' j') . ' - ' . date_format($endDate, 'j, Y');
+      }
+      else { // Month-spanning event
+        $eventDateString = date_format($startDate, $monthFormat . ' j') . ' - ' . date_format($endDate, $monthFormat . ' j, Y');
+      }
+    }
+  }
+  return $eventDateString;
+}
+
+
+/**
+ * Implements hook_theme().
+ */
+function aap_utilities_theme($existing, $type, $theme, $path) {
+  return array(
+    'aap_utilities_event_date' => array(
+      'variables' => array('date_string' => NULL, 'time_string' => NULL),
+    ),
+    'aap_utilities_tv_page_header' => [],
+    'aap_utilities_tv_page_footer' => [],
+  );
+}
+
+function aap_utilities_preprocess_node(&$variables) {
+  if (($variables['node']->bundle() == 'article' || $variables['node']->bundle() == 'how_to') && ($variables['view_mode'] == 'full')) {
+    // Get the configuration for the tag links.
+    $pattern = \Drupal::config('aap.tagLinks')->get('tagLinkPattern');
+
+    // Get the value of the tags field
+    $node = $variables['node'];
+    $tag_ids = array_column($node->field_tags->getValue(), 'target_id');
+    $tagTerms = \Drupal\taxonomy\Entity\Term::loadMultiple($tag_ids);
+    $links = [];
+    // Create a 'new' link for each tag term
+    foreach ($tagTerms as $term) {
+      $termName = $term->get('name')->getValue();
+      $url = Url::fromUri(str_replace('[termname]', $termName[0]['value'], $pattern));
+      $text = $termName[0]['value'];
+      $link = new Link($text, $url);
+      $linkRenderable = $link->toRenderable();
+      $linkRenderable['#attributes'] = [
+        'class' => ['tag-search-link'],
+        'property' => 'keywork'
+      ];
+      $links[] = render($linkRenderable);
+    }
+
+    $variables['tagLinks'] = $links;
+
+    $variables['changed'] = $node->getChangedTime();
+
+    // Get 'Breadcrumbs' for the Category taxonomy.
+    $subCatIDArray = array_column($node->field_category->getValue(), 'target_id');
+
+    // Load taxonomy term and parents
+    if (isset($subCatIDArray[0])) {
+      $subCategoryTerm = Term::load($subCatIDArray[0]);
+    }
+
+
+    // Output links for taxonomy terms with titles
+    $breadcrumbs = [];
+
+    // Category
+    $categoryArray = \Drupal::service('entity_type.manager')
+      ->getStorage("taxonomy_term")
+      ->loadParents($subCatIDArray[0]);
+    // Check if Category is present
+    if (count($categoryArray)) {
+      reset($categoryArray);
+      $categoryTerm = current($categoryArray);
+
+      $breadcrumbs[] = aap_utilities_generate_term_link($categoryTerm, FALSE);
+    }
+
+    // Subcategory
+    if ($subCategoryTerm) {
+      $breadcrumbs[] = aap_utilities_generate_term_link($subCategoryTerm, TRUE);
+    }
+
+    $variables['breadcrumbs'] = $breadcrumbs;
+  }
+
+}
+
+function aap_utilities_generate_term_link($term, $addSchemaOrgArticleSection) {
+  $termName = $term->get('name')->getValue();
+  $termID = $term->get('tid')->getValue();
+  $termURL = Url::fromUri('internal:/taxonomy/term/' . $termID[0]['value']);
+  $termLink = new Link($termName[0]['value'], $termURL);
+  $termLinKRenderable = $termLink->toRenderable();
+
+  $termLinKRenderable['#attributes'] = [
+    'class' => ['breadcrumb-link'],
+  ];
+  if ($addSchemaOrgArticleSection) {
+    $termLinKRenderable['#attributes']['property'] = "schema:articleSection";
+  }
+  return render($termLinKRenderable);
+
+}
+
+
+/**
+ * Implements hook_form_alter().
+ */
+function aap_utilities_form_alter(&$form, \Drupal\Core\Form\FormStateInterface $form_state, $form_id) {
+  $bundlesWithSubcategory = ['node_article_edit_form', 'node_how_to_edit_form'];
+  if (in_array($form_id, $bundlesWithSubcategory)) {
+    $form['#validate'][] = 'aap_utilities_subcategory_validate';
+  }
+
+  // Adjusting block edit form for Category Carousels.
+  if($form_id == 'panels_ipe_block_plugin_form' && $form["plugin_id"]["#value"] == 'views_block:how_to_category_carousel-block_1') {
+    $form["flipper"]["front"]["settings"]["override"]["arguments"]["name"]["value"]['#type'] = 'select';
+    $options = [];
+    foreach(\Drupal::entityTypeManager()->getStorage('taxonomy_term')->loadTree('category', 0, NULL, TRUE) as $term) {
+      // Only Load Sub-Categories.
+      if ($term->depth != "0") {
+        $options[$term->getName()] = $term->getName();
+      }
+    }
+    $form["flipper"]["front"]["settings"]["override"]["arguments"]["name"]["value"]['#options'] = $options;
+    //$form["flipper"]["front"]["settings"]["override"]["items_per_page"]['#access'] = FALSE;
+  }
+}
+
+/**
+ * Verify that the Subcategory field has at least one value populated.
+ *
+ * @param $form
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ */
+function aap_utilities_subcategory_validate($form, \Drupal\Core\Form\FormStateInterface $form_state) {
+
+  $values = $form_state->getValue('field_category');
+  $hasValue = FALSE;
+  foreach ($values as $value) {
+    if ($value['target_id'] > 0) {
+      $hasValue = TRUE;
+    }
+  }
+
+  if (!$hasValue) {
+    $form_state->setError($form['field_category'], t('Required: Subcategory field must have at least one selection.'));
+  }
+}
+
+/**
+ * Implements hook_token_info().
+ */
+function aap_utilities_token_info() {
+
+  /**
+   * This token is used to correctly return result count
+   * for views using ajax with 'load more' pager. Core views
+   * 'total-rows' is just a count of 'results' array. This
+   * provides incorrect values. This token simply returns
+   * 'total-rows' value from view object.
+   *
+   * @author Aaron Meeuwsen <aaron.meeuwsen@hs2solutins.com>
+   */
+  $info['tokens']['view']['raw-total-rows'] = [
+    'name' => t('Raw total rows'),
+    'description' => t('Returns raw total rows from the view. Not a count of result.'),
+  ];
+
+  return $info;
+}
+
+/**
+ * Implements hook_tokens().
+ */
+function aap_utilities_tokens($type, $tokens, array $data, array $options, BubbleableMetadata $bubbleable_metadata) {
+  $url_options = array('absolute' => TRUE);
+  if (isset($options['language'])) {
+    $url_options['language'] = $options['language'];
+  }
+  $replacements = array();
+
+  if ($type == 'view' && !empty($data['view'])) {
+    /** @var \Drupal\views\ViewExecutable $view */
+    $view = $data['view'];
+
+    $bubbleable_metadata->addCacheableDependency($view->storage);
+
+    foreach ($tokens as $name => $original) {
+      switch ($name) {
+        case 'raw-total-rows':
+          $replacements[$original] = $view->total_rows;
+          break;
+      }
+    }
+  }
+
+  return $replacements;
+}
+
+/**
+ * Implements hook_css_alter().
+ */
+function aap_utilities_css_alter(&$css, \Drupal\Core\Asset\AttachedAssetsInterface $assets) {
+  $route = Drupal::routeMatch()->getRouteName();
+  if($route == 'aap_utilities.tv_page_header' || $route = 'aap_utilities.tv_page_footer') {
+    global $base_url;
+
+    foreach ($css as $key => $values) {
+      if($values['type'] == 'file' && $key) {
+        $css[$key]['type'] = 'external';
+        $css[$key]['data'] = $base_url.'/'.$values['data'];
+        $css[$key]['preprocess'] = FALSE;
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_js_alter().
+ */
+function aap_utilities_js_alter(&$javascript, \Drupal\Core\Asset\AttachedAssetsInterface $assets) {
+  $route = Drupal::routeMatch()->getRouteName();
+  if($route == 'aap_utilities.tv_page_header' || $route == 'aap_utilities.tv_page_footer') {
+    global $base_url;
+
+    foreach ($javascript as $key => $values) {
+      if ($values['type'] == 'file' && $key) {
+        $javascript[$key]['type'] = 'external';
+        $javascript[$key]['data'] = $base_url . '/' . $values['data'];
+        $javascript[$key]['preprocess'] = FALSE;
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+agnesian_eventbrite.list:
+    path: '/eventbrite'
+    defaults:
+      _controller: '\Drupal\agnesian_eventbrite\Controller\AgnesianEventBriteController::eventBriteContent'
+      _title: 'Get EventBrite Events'
+    requirements:
+      _permission: 'administer site configuration'
+
+agnesian_eventbrite.config_form:
+  path: '/admin/config/services/agnesian-eventbrite'
+  defaults:
+    _form: '\Drupal\agnesian_eventbrite\Form\EventBriteForm'
+  requirements:
+    _permission: 'administer site configuration'

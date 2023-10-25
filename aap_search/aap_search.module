@@ -1,0 +1,29 @@
+<?php
+
+use Drupal\views\ViewExecutable;
+use Drupal\Component\Utility\Xss;
+
+/**
+ * Implements hook_views_pre_render().
+ */
+function aap_search_views_pre_render(ViewExecutable $view) {
+  // Update the [keyword] placeholder in the view header with the
+  // keyword from the url argument.
+  if ($view->id() == 'search_results') {
+    $facet_query = Xss::filter(\Drupal::request()->get('f'));
+    $facet_tid =  !empty ($facet_query) ? (int) str_replace("subcategory:", "", $facet_query[0]) : 0;
+    $term = \Drupal::entityTypeManager()->getStorage('taxonomy_term')->load($facet_tid);
+    $facets = !empty($term) ? $term->getName() : "All Categories";
+    $keyword = !empty($view->args[0]) ? 'for "'.$view->args[0].'""' : '';
+    $view->header['area']->options['content']['value'] = str_ireplace('[keyword]', $keyword, $view->header['area']->options['content']['value']);
+    $view->header['area']->options['content']['value'] = str_ireplace('[facets]', $facets, $view->header['area']->options['content']['value']);
+
+  }
+}
+
+function aap_search_preprocess_block(&$variables) {
+  if ($variables["plugin_id"] == "search_block") {
+    $variables['attributes']['role'] = 'search';
+  }
+}
+

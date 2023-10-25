@@ -1,0 +1,5 @@
+name: AAP Utilities
+type: module
+description: Utilities for AAP Content Hub.
+core: 8.x
+package: AAP

@@ -1,0 +1,18 @@
+aap_menu.admin_config_aap:
+  route_name: system.admin_config_regional
+  title: 'Advanced Auto Parts Configuration'
+  parent: system.admin_config
+  description: 'Configure various settings and values for AAP'
+  weight: -99
+aap_utilities.tag_link_config:
+  route_name: aap_utilities.tag_link_config
+  title: 'Tag Links Configuration'
+  description: 'Configure settings for tag vocabulary links in Articles and How Tos'
+  parent: aap_menu.admin_config_aap
+  weight: 1
+aap_utilities.aap_trailing_slash_config:
+  route_name: aap_utilities.aap_trailing_slash_config
+  title: 'Trailing Slash Configuration'
+  description: 'Configure trailing slash on generated menu links'
+  parent: aap_menu.admin_config_aap
+  weight: 14

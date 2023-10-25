@@ -1,0 +1,34 @@
+aap_menu.admin_config_aap:
+  path: '/admin/config/aap'
+  defaults:
+    _controller: '\Drupal\system\Controller\SystemController::systemAdminMenuBlockPage'
+    _title: 'AAP Configuration'
+  requirements:
+    _permission: 'access administration pages'
+aap_utilities.tag_link_config:
+  path: '/admin/config/aap/taglinks'
+  defaults:
+    _form: 'Drupal\aap_utilities\Form\TagLinksForm'
+    _title: 'Tag Links Configuration'
+  requirements:
+    _permission: 'administer site configuration'
+aap_utilities.tv_page_header:
+  path: '/layout/tv-page/header'
+  defaults:
+    _controller: '\Drupal\aap_utilities\Controller\AapTvPageController::view'
+  requirements:
+    _permission: 'access content'
+aap_utilities.tv_page_footer:
+  path: '/layout/tv-page/footer'
+  defaults:
+    _controller: '\Drupal\aap_utilities\Controller\AapTvPageController::view'
+  requirements:
+    _permission: 'access content'
+aap_utilities.aap_trailing_slash_config:
+  path: '/admin/config/aap/trailing-slash'
+  defaults:
+    _form: 'Drupal\aap_utilities\Form\AapTrailingSlashConfigForm'
+    _title: 'Trailing Slash Configuration'
+  requirements:
+    _permission: 'administer site configuration'
+

@@ -1,0 +1,24 @@
+<?php
+
+/**
+ * @file
+ * Contains agnesian_eventbrite.module.
+ */
+
+use Drupal\agnesian_eventbrite\Controller\AgnesianEventBriteController;
+
+/**
+ * Implements agnesian_eventbrite_cron().
+ *
+ * We implement agnesian_eventbrite_cron() to load Eventbrite Events into eventbrite_event Entity.
+ */
+function agnesian_eventbrite_cron() {
+
+  //Load Controller
+  $eventbrite = new AgnesianEventBriteController();
+
+  // Load eventbrite events.
+  $eventbrite->eventBriteImportRun();
+}
+
+

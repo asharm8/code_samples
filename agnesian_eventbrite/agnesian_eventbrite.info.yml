@@ -1,0 +1,6 @@
+name: Agnesian EventBrite
+type: module
+description: EventBrite API for Agnesian
+core: 8.x
+version: 1.0
+package: 'Custom'

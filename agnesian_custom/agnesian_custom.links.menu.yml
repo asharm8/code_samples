@@ -1,0 +1,6 @@
+# Define default links for this module.
+agnesian_custom.config_form:
+  route_name: agnesian_custom.config_form
+  title: 'Agnesian PDF Directory Configuration'
+  parent: system.admin_config_services
+  description: 'Agnesian PDF Directory configuration form'
